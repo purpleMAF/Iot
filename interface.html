@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IoT KWH Meter Online</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      background: linear-gradient(270deg, #1e3a8a, #6d28d9, #be185d, #1e3a8a);
+      background-size: 800% 800%;
+      animation: gradientBG 18s ease infinite;
+    }
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .floating {
+      animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%   { transform: translateY(0px); }
+      50%  { transform: translateY(-8px); }
+      100% { transform: translateY(0px); }
+    }
+
+    .icon-3d {
+      transition: transform 0.3s ease, filter 0.3s ease;
+      filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4));
+    }
+    .icon-3d:hover {
+      transform: scale(1.2) rotate(8deg);
+      filter: drop-shadow(0 8px 12px rgba(0,0,0,0.6));
+    }
+
+    /* Efek tabel 3D */
+    .table-3d {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(12px);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,0.2);
+      transform: perspective(1000px) rotateX(2deg);
+      transition: transform 0.3s ease;
+    }
+    .table-3d:hover {
+      transform: perspective(1000px) rotateX(0deg) scale(1.02);
+    }
+    .table-3d th, .table-3d td {
+      padding: 12px;
+      text-align: center;
+    }
+    .sticky-header thead {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center text-white">
+
+  <!-- Login -->
+  <div id="loginPage" class="w-full max-w-md bg-white/10 backdrop-blur-md rounded-2xl p-8 shadow-xl">
+    <h2 class="text-3xl font-bold text-center mb-4">🔑 Login Akses</h2>
+    <p class="text-center text-sm text-gray-200 mb-6">
+      Selamat datang di <span class="font-semibold">IoT Online KWH Meter</span>.  
+      Aplikasi ini digunakan untuk <span class="text-yellow-300">memantau konsumsi listrik</span> secara realtime dengan ESP32 + PZEM-004T.
+    </p>
+    <form id="loginForm" class="space-y-4">
+      <input type="text" id="username" placeholder="Username" required
+        class="w-full p-3 rounded-lg bg-white/20 text-white placeholder-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-400" />
+      <input type="password" id="password" placeholder="Password" required
+        class="w-full p-3 rounded-lg bg-white/20 text-white placeholder-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-400" />
+      <button type="submit"
+        class="w-full py-3 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg">
+        Masuk Dashboard
+      </button>
+    </form>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboardPage" class="hidden w-full p-6">
+    <!-- Header -->
+    <header class="flex justify-between items-center mb-6">
+      <div class="text-center flex-1">
+        <h1 class="text-4xl font-bold drop-shadow-lg">⚡ IoT KWH Meter Online</h1>
+        <p class="text-gray-200">Dashboard realtime untuk memantau tegangan, arus, daya, energi, serta tabel data setiap detik.</p>
+      </div>
+      <button id="logoutBtn" class="ml-4 px-4 py-2 bg-red-500 hover:bg-red-600 rounded-lg shadow-lg">🚪 Logout</button>
+    </header>
+
+    <!-- Cards -->
+    <section class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-6xl mx-auto mb-6">
+      <div class="bg-white/20 backdrop-blur-lg rounded-2xl shadow-lg p-4 text-center border-t-4 border-blue-400 relative">
+        <div class="absolute -top-6 right-4 text-4xl floating icon-3d">🔌</div>
+        <h2 class="text-gray-200">Tegangan (V)</h2>
+        <p id="voltage" class="text-2xl font-bold text-blue-300">220 V</p>
+      </div>
+      <div class="bg-white/20 backdrop-blur-lg rounded-2xl shadow-lg p-4 text-center border-t-4 border-green-400 relative">
+        <div class="absolute -top-6 right-4 text-4xl floating icon-3d">⚡</div>
+        <h2 class="text-gray-200">Arus (A)</h2>
+        <p id="current" class="text-2xl font-bold text-green-300">1.2 A</p>
+      </div>
+      <div class="bg-white/20 backdrop-blur-lg rounded-2xl shadow-lg p-4 text-center border-t-4 border-yellow-400 relative">
+        <div class="absolute -top-6 right-4 text-4xl floating icon-3d">💡</div>
+        <h2 class="text-gray-200">Daya (W)</h2>
+        <p id="power" class="text-2xl font-bold text-yellow-300">265 W</p>
+      </div>
+      <div class="bg-white/20 backdrop-blur-lg rounded-2xl shadow-lg p-4 text-center border-t-4 border-pink-400 relative">
+        <div class="absolute -top-6 right-4 text-4xl floating icon-3d">📈</div>
+        <h2 class="text-gray-200">Energi (kWh)</h2>
+        <p id="energy" class="text-2xl font-bold text-pink-300">2.5 kWh</p>
+      </div>
+    </section>
+
+    <!-- Grafik -->
+    <section class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-6xl mx-auto mb-6">
+      <div class="bg-white/20 backdrop-blur-lg rounded-2xl shadow-lg p-4">
+        <h4 class="text-lg font-semibold text-gray-100 mb-2">Grafik Power (W)</h4>
+        <canvas id="chartPower" height="180"></canvas>
+      </div>
+      <div class="bg-white/20 backdrop-blur-lg rounded-2xl shadow-lg p-4">
+        <h4 class="text-lg font-semibold text-gray-100 mb-2">Grafik Energy (kWh)</h4>
+        <canvas id="chartEnergy" height="180"></canvas>
+      </div>
+    </section>
+
+    <!-- Tabel 3D -->
+    <section class="max-w-5xl mx-auto">
+      <h4 class="text-lg font-semibold text-gray-100 mb-2">📊 Data Realtime</h4>
+      <div class="overflow-x-auto table-3d max-h-80">
+        <table class="min-w-full text-sm text-white sticky-header">
+          <thead class="bg-white/20">
+            <tr>
+              <th>Waktu</th>
+              <th>Tegangan (V)</th>
+              <th>Arus (A)</th>
+              <th>Daya (W)</th>
+              <th>Energi (kWh)</th>
+            </tr>
+          </thead>
+          <tbody id="dataTable" class="divide-y divide-white/10">
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const loginForm = document.getElementById("loginForm");
+    const loginPage = document.getElementById("loginPage");
+    const dashboardPage = document.getElementById("dashboardPage");
+    const logoutBtn = document.getElementById("logoutBtn");
+
+    loginForm.addEventListener("submit", function(e) {
+      e.preventDefault();
+      loginPage.classList.add("hidden");
+      dashboardPage.classList.remove("hidden");
+    });
+
+    logoutBtn.addEventListener("click", () => {
+      dashboardPage.classList.add("hidden");
+      loginPage.classList.remove("hidden");
+    });
+
+    const powerCtx = document.getElementById("chartPower").getContext("2d");
+    const energyCtx = document.getElementById("chartEnergy").getContext("2d");
+
+    const chartPower = new Chart(powerCtx, {
+      type: "line",
+      data: { labels: [], datasets: [{ label: "Power (W)", data: [], borderColor: "#facc15", backgroundColor: "rgba(250,204,21,0.3)", fill: true, tension: 0.4 }]},
+      options: { responsive: true }
+    });
+
+    const chartEnergy = new Chart(energyCtx, {
+      type: "line",
+      data: { labels: [], datasets: [{ label: "Energy (kWh)", data: [], borderColor: "#ec4899", backgroundColor: "rgba(236,72,153,0.3)", fill: true, tension: 0.4 }]},
+      options: { responsive: true }
+    });
+
+    // Update data setiap 1 detik
+    setInterval(() => {
+      const now = new Date().toLocaleTimeString().slice(0, 8);
+      const voltage = (210 + Math.random() * 15).toFixed(1);
+      const current = (1 + Math.random() * 0.5).toFixed(2);
+      const power = (voltage * current).toFixed(0);
+      const energy = (Math.random() * 5).toFixed(2);
+
+      document.getElementById("voltage").innerText = voltage + " V";
+      document.getElementById("current").innerText = current + " A";
+      document.getElementById("power").innerText = power + " W";
+      document.getElementById("energy").innerText = energy + " kWh";
+
+      chartPower.data.labels.push(now);
+      chartPower.data.datasets[0].data.push(power);
+      chartEnergy.data.labels.push(now);
+      chartEnergy.data.datasets[0].data.push(energy);
+
+      if (chartPower.data.labels.length > 10) {
+        chartPower.data.labels.shift();
+        chartPower.data.datasets[0].data.shift();
+        chartEnergy.data.labels.shift();
+        chartEnergy.data.datasets[0].data.shift();
+      }
+
+      chartPower.update();
+      chartEnergy.update();
+
+      // Tambah data ke tabel
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${now}</td>
+        <td>${voltage}</td>
+        <td>${current}</td>
+        <td>${power}</td>
+        <td>${energy}</td>
+      `;
+      const tableBody = document.getElementById("dataTable");
+      tableBody.appendChild(row);
+      if (tableBody.rows.length > 15) tableBody.deleteRow(0);
+    }, 1000);
+  </script>
+</body>
+</html>
